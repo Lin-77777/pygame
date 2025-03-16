@@ -48,15 +48,16 @@ bricks_gap = 5  # 磚塊間距
 bricks = []  # 用來存放磚塊物件的列表
 for row in range(bricks_row):
     for col in range(bricks_col):
-        x = col * (bricks_w + bricks_gap) + 55  # 70是磚塊的起始X座標
+        x = col * (bricks_w + bricks_gap) + 55  # 55是磚塊的起始X座標
         y = row * (bricks_h + bricks_gap) + 60  # 磚塊的起始Y座標
-        coolor = (
+        color = (
             r.randint(30, 255),
             r.randint(30, 255),
             r.randint(30, 255),
         )  # 磚塊顏色RGB隨機產生
-        brick = Brick(x, y, bricks_w, bricks_h, coolor)  # 建立磚塊物件
+        brick = Brick(x, y, bricks_w, bricks_h, color)  # 建立磚塊物件
         bricks.append(brick)  # 將磚塊物件加入列表
+
 ######################顯示文字設定######################
 
 ######################底板設定######################
@@ -66,11 +67,16 @@ for row in range(bricks_row):
 ######################遊戲結束設定######################
 
 ######################主程式######################
+
 while True:
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:  # 點擊關閉視窗
             sys.exit()
+    screen.fill((0, 0, 0))  # 清空畫面
     for brick in bricks:
         brick.draw(screen)  # 繪製磚塊
+    x1, y1 = pygame.mouse.get_pos()
+    pygame.draw.rect(screen, (255, 255, 255), (x1, 530, 80, 15))
 
     pygame.display.update()  # 更新畫面
