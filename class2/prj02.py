@@ -40,15 +40,15 @@ pygame.display.set_caption("打磚塊遊戲")  # 設定視窗標題
 screen = pygame.display.set_mode(bg_size)  # 設定視窗大小
 
 ######################磚塊######################
-bricks_row = 9  # row=9 為衡的有九個磚塊
-bricks_col = 11  # col=11 為直的有五個磚塊
+bricks_row = 9  # row=9 為衡的有十個磚塊
+bricks_col = 11  # col=11 為直的有九個磚塊
 bricks_w = 58  # 磚塊寬度
 bricks_h = 20  # 磚塊高度
 bricks_gap = 5  # 磚塊間距
 bricks = []  # 用來存放磚塊物件的列表
 for row in range(bricks_row):
     for col in range(bricks_col):
-        x = col * (bricks_w + bricks_gap) + 55  # 70是磚塊的起始X座標
+        x = col * (bricks_w + bricks_gap) + 55  # 磚塊的起始X座標
         y = row * (bricks_h + bricks_gap) + 60  # 磚塊的起始Y座標
         coolor = (
             r.randint(30, 255),
