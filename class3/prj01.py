@@ -153,7 +153,7 @@ ball = Ball(
 ######################主程式######################
 
 while True:
-    FPS.tick(60)  # 設定FPS為60
+    FPS.tick(120)  # 設定FPS為60
     screen.fill((0, 0, 0))  # 清空畫面
     mos_x, mos_y = pygame.mouse.get_pos()  # 取得滑鼠座標
     pad.rect.x = mos_x - pad.rect.width // 2  # 以滑鼠的中心為底板的中心
