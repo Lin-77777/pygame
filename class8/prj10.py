@@ -1,0 +1,373 @@
+######################載入套件######################
+import pygame  # 載入 pygame 套件，用於遊戲開發
+import sys  # 載入 sys 套件，用於系統相關操作
+import random  # 載入 random 套件，用於隨機生成平台
+
+
+######################全域變數######################
+score = 0  # 紀錄當前分數
+highest_score = 0  # 紀錄最高分數
+game_over = False  # 紀錄遊戲是否結束
+initial_player_y = 0  # 紀錄玩家的初始高度，用於計算分數
+
+
+######################物件類別######################
+class Player:
+    def __init__(self, x, y, width, height, color):
+        """
+        初始化主角\n
+        x, y: 主角的左上角座標\n
+        width, height: 主角的寬度和高度\n
+        color: 主角的顏色 (RGB格式)\n
+        """
+        self.rect = pygame.Rect(x, y, width, height)  # 建立主角的矩形區域
+        self.color = color
+        self.speed = 5  # 設定主角的水平移動速度
+        self.velocity_y = 0  # 垂直速度
+        self.jump_power = -12  # 跳躍初始力量（負值表示向上）
+        self.gravity = 0.5  # 重力加速度
+        self.on_platform = False  # 是否站在平台上
+
+    def draw(self, display_area):
+        """
+        繪製主角\n
+        display_area: 繪製主角的目標視窗\n
+        """
+        pygame.draw.rect(display_area, self.color, self.rect)
+
+    def move(self, direction, bg_x):
+        """
+        移動主角並處理穿牆效果\n
+        direction: 移動方向 (1為右移, -1為左移)\n
+        bg_x: 遊戲視窗寬度，用於計算穿牆位置\n
+        """
+        # 根據方向和速度移動主角
+        self.rect.x += direction * self.speed
+        # 穿牆功能處理
+        if self.rect.right < 0:  # 當主角完全移出左邊界時
+            self.rect.left = bg_x  # 從右側重新出現
+        elif self.rect.left > bg_x:  # 當主角完全移出右邊界時
+            self.rect.right = 0  # 從左側重新出現
+
+    def apply_gravity(self):
+        """
+        應用重力效果\n
+        更新垂直速度和位置\n
+        """
+        self.velocity_y += self.gravity  # 加入重力加速度
+        self.rect.y += self.velocity_y  # 更新垂直位置
+
+    def check_platform_collision(self, platforms):
+        """
+        檢查與所有平台的碰撞\n
+        platforms: 要檢查碰撞的平台物件列表\n
+        """
+        # 只在玩家往下掉的時候檢查碰撞
+        if self.velocity_y > 0:
+            # 計算檢測點數量，根據垂直速度決定檢測點的數量
+            check_points = max(1, int(abs(self.velocity_y) / 5))
+            step_y = self.velocity_y / check_points
+
+            for platform in platforms:
+                # 跳過已消失的特殊平台
+                if platform.is_vanished:
+                    continue
+                    
+                for i in range(check_points):
+                    test_rect = self.rect.copy()
+                    test_rect.y += i * step_y  # 檢查是否與平台發生碰撞
+                    if (
+                        test_rect.bottom >= platform.rect.top
+                        and test_rect.bottom <= platform.rect.bottom
+                        and test_rect.right >= platform.rect.left
+                        and test_rect.left <= platform.rect.right
+                    ):
+                        self.rect.bottom = platform.rect.top  # 將玩家放在平台上
+                        self.on_platform = True
+
+                        # 如果是特殊平台，標記為已消失
+                        if platform.is_special:
+                            platform.is_vanished = True
+
+                        # 先設定一般跳躍力
+                        self.velocity_y = self.jump_power
+
+                        # 再檢查是否碰到彈簧（僅檢查當前平台上的彈簧）
+                        for spring in springs:
+                            if (
+                                spring.platform == platform  # 確保彈簧屬於當前平台
+                                and test_rect.right >= spring.rect.left  # 檢查水平方向的碰撞
+                                and test_rect.left <= spring.rect.right  # 檢查水平方向的碰撞
+                            ):
+                                self.velocity_y = -25  # 碰到彈簧時給予更強的跳躍力
+                                break  # 找到彈簧就結束檢查
+                        return True
+        return False
+
+
+class Platform:
+    def __init__(self, x, y, width, height, color):
+        """
+        初始化平台\n
+        x, y: 平台的左上角座標\n
+        width, height: 平台的寬度和高度\n
+        color: 平台的顏色 (RGB格式)\n
+        """
+        self.rect = pygame.Rect(x, y, width, height)
+        self.color = color
+        self.is_special = False  # 是否為特殊平台(只能踩一次)
+        self.is_vanished = False  # 特殊平台是否已經消失
+
+    def draw(self, display_area):
+        """
+        繪製平台\n
+        display_area: 繪製平台的目標視窗\n
+        """
+        if not self.is_vanished:  # 只繪製未消失的平台
+            pygame.draw.rect(display_area, self.color, self.rect)
+
+
+class Spring:
+    def __init__(self, platform):
+        """
+        初始化彈簧道具\n
+        platform: 彈簧所在的平台物件\n
+        """
+        self.width = 20  # 彈簧寬度
+        self.height = 10  # 彈簧高度
+        # 將彈簧放在平台的隨機位置上
+        self.rect = pygame.Rect(
+            random.randint(platform.rect.left, platform.rect.right - self.width),
+            platform.rect.top - self.height,
+            self.width,
+            self.height,
+        )
+        self.color = (255, 255, 0)  # 黃色
+        self.platform = platform  # 記錄所屬平台
+
+    def draw(self, display_area):
+        """
+        繪製彈簧\n
+        display_area: 繪製彈簧的目標視窗\n
+        """
+        pygame.draw.rect(display_area, self.color, self.rect)
+
+    def update_position(self):
+        """
+        更新彈簧位置\n
+        讓彈簧跟著平台移動\n
+        """
+        # 計算彈簧與平台的相對位置
+        platform_top = self.platform.rect.top
+        self.rect.bottom = platform_top
+
+
+######################初始化設定######################
+pygame.init()  # 初始化 pygame
+FPS = pygame.time.Clock()  # 創建時鐘物件，用於控制遊戲更新速率
+
+######################遊戲視窗設定######################
+bg_x = 400  # 設定視窗寬度
+bg_y = 600  # 設定視窗高度
+bg_size = (bg_x, bg_y)  # 視窗尺寸元組
+pygame.display.set_caption("Doodle Jump")  # 設定視窗標題
+screen = pygame.display.set_mode(bg_size)  # 創建遊戲視窗
+
+######################主角設定######################
+player_w = 30  # 主角寬度
+player_h = 30  # 主角高度
+player_x = (bg_x - player_w) // 2  # 計算主角的初始X座標（置中）
+player_y = bg_y - player_h - 50  # 計算主角的初始Y座標（底部上方50像素）
+# 創建主角物件，設定為綠色
+player = Player(player_x, player_y, player_w, player_h, (0, 255, 0))
+
+######################平台設定######################
+platform_w = 60  # 平台寬度
+platform_h = 10  # 平台高度
+platforms = []  # 建立平台列表
+springs = []  # 建立彈簧列表
+
+# 創建底部平台，確保玩家不會掉出畫面
+platform_x = (bg_x - platform_w) // 2  # 平台X座標（置中）
+platform_y = bg_y - platform_h - 10  # 平台Y座標（底部上方10像素）
+# 創建平台物件，設定為白色
+platform = Platform(platform_x, platform_y, platform_w, platform_h, (255, 255, 255))
+platforms.append(platform)
+
+# 隨機生成其他平台
+platform_count = random.randint(8, 10) + 10  # 隨機決定平台數量
+for i in range(platform_count):
+    x = random.randint(0, bg_x - platform_w)  # 隨機生成平台的X座標
+    y = (bg_y - 100) - (i * 60)  # 確保平台間距60像素
+    platform = Platform(x, y, platform_w, platform_h, (255, 255, 255))
+    platforms.append(platform)
+    # 有20%機率在平台上生成彈簧
+    if random.random() < 0.2:
+        spring = Spring(platform)
+        springs.append(spring)
+
+
+######################字型設定######################
+font = pygame.font.Font(
+    "C:/Windows/Fonts/msjh.ttc", 24
+)  # 設定字型和大小為微軟正黑體24點
+
+
+######################主程式######################
+# 更新相機位置的函式
+def update_camera():
+    """
+    更新相機位置和平台\n
+    - 當玩家上升到螢幕的一半高度以上時，固定玩家在螢幕中間\n
+    - 將所有平台往下移動，製造出玩家繼續往上的錯覺\n
+    - 移除超出畫面底部的平台\n
+    - 在上方生成新的平台\n
+    """
+    global score, initial_player_y  # 使用全域變數
+    screen_middle = bg_y // 2  # 螢幕中間的Y座標
+    # 如果玩家位置高於螢幕中間，更新相機位置
+    if player.rect.y < screen_middle:
+        camera_move = screen_middle - player.rect.y
+        player.rect.y = screen_middle
+
+        # 計算分數：每上升10像素加1分
+        score += int(camera_move / 10)
+
+        # 更新所有平台的位置
+        for platform in platforms:
+            platform.rect.y += camera_move
+
+        # 更新所有彈簧的位置
+        for spring in springs[:]:  # 使用切片來建立列表複本
+            spring.rect.y += camera_move
+            # 移除超出畫面的彈簧
+            if spring.rect.top > bg_y:
+                springs.remove(spring)
+
+        # 移除超出畫面底部的平台
+        y_min = bg_y
+        for platform in platforms[:]:  # 使用切片來建立列表複本
+            if platform.rect.top > bg_y:
+                platforms.remove(platform)
+            if platform.rect.top < y_min:
+                y_min = platform.rect.top
+
+        # 在上方生成新的平台
+        if len(platforms) < platform_count:
+            x = random.randint(0, bg_x - platform_w)
+            y = y_min - 60  # 確保新平台在最上方
+            platform = Platform(x, y, platform_w, platform_h, (255, 255, 255))
+            
+            # 當分數超過100分時，有20%機率生成特殊平台
+            if score > 100 and random.random() < 0.2:
+                platform.is_special = True  # 設定為特殊平台
+                platform.color = (255, 0, 0)  # 設定為紅色
+            
+            platforms.append(platform)
+            # 只在非特殊平台上生成彈簧，機率為20%
+            if not platform.is_special and random.random() < 0.2:
+                spring = Spring(platform)
+                springs.append(spring)
+
+
+def reset_game():
+    """
+    重置遊戲狀態\n
+    - 重設玩家位置\n
+    - 清空並重新生成平台\n
+    - 重設分數和遊戲狀態\n
+    """
+    global score, game_over, platforms, springs, initial_player_y, highest_score
+
+    # 重設玩家位置
+    player.rect.x = (bg_x - player_w) // 2
+    player.rect.y = bg_y - player_h - 50
+    player.velocity_y = 0
+
+    # 清空平台和彈簧列表
+    platforms.clear()
+    springs.clear()
+
+    # 重新生成底部平台
+    platform_x = (bg_x - platform_w) // 2
+    platform_y = bg_y - platform_h - 10
+    platform = Platform(platform_x, platform_y, platform_w, platform_h, (255, 255, 255))
+    platforms.append(platform)
+
+    # 重新生成其他平台
+    for i in range(platform_count - 1):
+        x = random.randint(0, bg_x - platform_w)
+        y = (bg_y - 100) - (i * 60)
+        platform = Platform(x, y, platform_w, platform_h, (255, 255, 255))
+        platforms.append(platform)
+        # 有20%機率在平台上生成彈簧
+        if random.random() < 0.2:
+            spring = Spring(platform)
+            springs.append(spring)
+
+    # 重設遊戲相關變數
+    score = 0
+    game_over = False
+    initial_player_y = player.rect.y
+
+
+while True:
+    FPS.tick(60)  # 限制遊戲更新率為每秒60幀
+    screen.fill((0, 0, 0))  # 用黑色填充畫面背景
+
+    if not game_over:  # 遊戲進行中
+        update_camera()  # 更新相機位置和平台
+
+        # 獲取當前按下的按鍵狀態
+        keys = pygame.key.get_pressed()
+
+        # 處理左右移動控制
+        if keys[pygame.K_LEFT]:  # 當按下左方向鍵
+            player.move(-1, bg_x)  # 向左移動
+        if keys[pygame.K_RIGHT]:  # 當按下右方向鍵
+            player.move(1, bg_x)  # 向右移動
+
+        # 應用重力效果和處理碰撞
+        player.apply_gravity()
+        player.check_platform_collision(platforms)
+
+        # 檢查遊戲結束條件（玩家掉出畫面）
+        if player.rect.top > bg_y:
+            game_over = True
+            # 更新最高分數
+            if score > highest_score:
+                highest_score = score
+
+    # 事件處理迴圈
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:  # 當使用者點擊關閉視窗
+            sys.exit()  # 結束程式
+        elif event.type == pygame.KEYDOWN and game_over:  # 遊戲結束時按任意鍵重新開始
+            reset_game()
+
+    # 繪製所有平台和彈簧
+    for platform in platforms:
+        platform.draw(screen)
+    for spring in springs:
+        spring.draw(screen)
+
+    player.draw(screen)  # 繪製主角
+
+    # 顯示分數
+    score_text = font.render(f"分數: {score}", True, (255, 255, 255))
+    screen.blit(score_text, (10, 10))
+
+    # 如果遊戲結束，顯示遊戲結束訊息和最高分
+    if game_over:
+        game_over_text = font.render(
+            "遊戲結束！按任意鍵重新開始", True, (255, 255, 255)
+        )
+        highest_score_text = font.render(
+            f"最高分數: {highest_score}", True, (255, 255, 255)
+        )
+        text_rect = game_over_text.get_rect(center=(bg_x / 2, bg_y / 2))
+        score_rect = highest_score_text.get_rect(center=(bg_x / 2, bg_y / 2 + 40))
+        screen.blit(game_over_text, text_rect)
+        screen.blit(highest_score_text, score_rect)
+
+    pygame.display.update()  # 更新畫面顯示
