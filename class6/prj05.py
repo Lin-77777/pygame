@@ -18,19 +18,13 @@ class Player:
         self.jump_speed = 0  # 主角的垂直速度，初始為0
         self.gravity = 0.5  # 重力加速度，影響下落速度
         self.jump_power = -10  # 跳躍初始速度 (負值代表向上)
-        self.highest_y = self.rect.y  # 記錄主角到達的最高點
 
-    def draw(self, display_area, camera_y):
+    def draw(self, display_area):
         """
         繪製主角於畫面上\n
         display_area: 遊戲顯示區域\n
-        camera_y: 攝影機的垂直偏移量\n
         """
-        # 根據攝影機位置調整繪製位置
-        draw_rect = pygame.Rect(
-            self.rect.x, self.rect.y - camera_y, self.rect.width, self.rect.height
-        )
-        pygame.draw.rect(display_area, self.color, draw_rect)
+        pygame.draw.rect(display_area, self.color, self.rect)
 
     def move(self, direction, bg_x):
         """
@@ -55,10 +49,6 @@ class Player:
         self.jump_speed += self.gravity  # 加入重力效果
         self.rect.y += self.jump_speed  # 更新垂直位置
 
-        # 更新最高點記錄
-        if self.rect.y < self.highest_y:
-            self.highest_y = self.rect.y
-
     def jump(self):
         """
         觸發主角的跳躍動作\n
@@ -76,17 +66,12 @@ class Platform:
         self.rect = pygame.Rect(x, y, width, height)
         self.color = (255, 255, 255)  # 平台顏色設定為白色
 
-    def draw(self, display_area, camera_y):
+    def draw(self, display_area):
         """
         繪製平台於畫面上\n
         display_area: 遊戲顯示區域\n
-        camera_y: 攝影機的垂直偏移量\n
         """
-        # 根據攝影機位置調整繪製位置
-        draw_rect = pygame.Rect(
-            self.rect.x, self.rect.y - camera_y, self.rect.width, self.rect.height
-        )
-        pygame.draw.rect(display_area, self.color, draw_rect)
+        pygame.draw.rect(display_area, self.color, self.rect)
 
     def check_collision(self, player):
         """
@@ -126,85 +111,36 @@ player = Player(bg_x // 2 - player_w // 2, bg_y - player_h - 50, player_w, playe
 platform_w = 60  # 平台寬度
 platform_h = 10  # 平台高度
 platforms = []  # 平台列表
+
+# 設定平台數量（包含初始平台）
+platform_count = r.randint(8, 10)  # 隨機生成8-10個平台
 min_platform_spacing = 60  # 平台最小間距
 
+# 計算平台的垂直分布範圍
+available_height = bg_y - 100  # 保留上下邊界的空間
+max_spacing = available_height // (platform_count - 1)  # 最大間距
 
-# 初始平台設置
-def create_starting_platforms():
-    """建立初始平台"""
-    platforms.clear()  # 清空現有平台
-
-    # 設定平台數量
-    platform_count = r.randint(8, 10)
-
-    # 計算平台的垂直分布範圍
-    available_height = bg_y - 100
-    max_spacing = available_height // (platform_count - 1)
-
-    def check_initial_overlap(new_x, new_y, current_platforms):
-        """檢查初始平台是否與已存在的平台重疊"""
-        new_rect = pygame.Rect(new_x, new_y, platform_w, platform_h)
-        for platform in current_platforms:
-            if (
-                abs(platform.rect.x - new_x) < platform_w
-                and abs(platform.rect.y - new_y) < min_platform_spacing
-            ):
-                return True
-        return False
-
-    for i in range(platform_count):
-        if i == 0:  # 第一個平台作為初始平台
-            x = bg_x // 2 - platform_w // 2
-            y = bg_y - player_h - 20
-        else:
-            # 嘗試生成不重疊的平台，最多嘗試10次
-            for _ in range(10):
-                x = r.randint(20, bg_x - platform_w - 20)
-                base_y = bg_y - i * (available_height // (platform_count - 1))
-                y = base_y + r.randint(-10, 10)
-                if not check_initial_overlap(x, y, platforms):
-                    break
-
-        platform = Platform(x, y, platform_w, platform_h)
-        platforms.append(platform)
-
-
-def create_new_platform(min_y):
-    """
-    在上方生成新的平台\n
-    min_y: 新平台的最小高度\n
-    """
-
-    def check_overlap(new_x, new_y):
-        """檢查新平台是否與現有平台重疊"""
-        new_rect = pygame.Rect(new_x, new_y, platform_w, platform_h)
-        for platform in platforms:
-            # 檢查水平和垂直方向的距離
-            if (
-                abs(platform.rect.x - new_x) < platform_w
-                and abs(platform.rect.y - new_y) < min_platform_spacing
-            ):
-                return True
-        return False
-
-    # 嘗試生成不重疊的平台，最多嘗試10次
-    for _ in range(10):
+for i in range(platform_count):
+    if i == 0:  # 第一個平台作為初始平台
+        x = bg_x // 2 - platform_w // 2  # X座標置中
+        y = bg_y - player_h - 20  # Y座標在主角下方
+    else:
+        # 隨機產生平台的x座標，確保不會太靠近邊緣
         x = r.randint(20, bg_x - platform_w - 20)
-        y = min_y - r.randint(50, 80)
-        if not check_overlap(x, y):
-            return Platform(x, y, platform_w, platform_h)
+        # 計算平台的y座標，確保間距適中
+        base_y = bg_y - i * (available_height // (platform_count - 1))
+        y = base_y + r.randint(-10, 10)  # 加入一些隨機變化
 
-    # 如果10次都無法找到合適位置，則直接返回
-    return Platform(x, y, platform_w, platform_h)
+    # 確保y座標不會太接近其他平台
+    if i > 0:
+        prev_platform = platforms[-1]
+        min_y = prev_platform.rect.y - max_spacing
+        if y > min_y:
+            y = min_y
 
-
-# 建立初始平台
-create_starting_platforms()
-
-######################攝影機設定######################
-camera_y = 0  # 攝影機垂直偏移量
-target_camera_y = 0  # 目標攝影機位置
-camera_speed = 0.1  # 攝影機跟隨速度
+    # 建立新平台並加入列表
+    platform = Platform(x, y, platform_w, platform_h)
+    platforms.append(platform)
 
 ######################主程式######################
 while True:
@@ -228,29 +164,13 @@ while True:
     # 更新遊戲狀態
     player.update()  # 更新主角位置
 
-    # 更新攝影機位置
-    target_camera_y = player.rect.y - (bg_y * 0.7)  # 保持主角在畫面下方30%處
-    camera_y += (target_camera_y - camera_y) * camera_speed
-
-    # 刪除離開視窗底部的平台
-    new_platforms = []
-    for p in platforms:
-        if p.rect.y - camera_y < bg_y + 100:
-            new_platforms.append(p)
-    platforms = new_platforms
-    # 在頂部生成新平台
-    if len(platforms) > 0:
-        highest_platform = min(platforms, key=lambda p: p.rect.y)
-        if highest_platform.rect.y > player.highest_y - 200:
-            platforms.append(create_new_platform(highest_platform.rect.y))
-
     # 處理所有平台的碰撞檢測和繪製
     for platform in platforms:
-        platform.draw(screen, camera_y)  # 繪製平台
+        platform.draw(screen)  # 繪製平台
         platform.check_collision(player)  # 檢查碰撞
 
     # 繪製主角
-    player.draw(screen, camera_y)
+    player.draw(screen)
 
     # 更新畫面
     pygame.display.update()
