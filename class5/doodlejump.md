@@ -229,3 +229,124 @@ player = Player(player_x, player_y, player_w, player_h, (0, 255, 0), sprites if 
 platform = Platform(platform_x, platform_y, platform_w, platform_h, (100, 100, 100), False, sprites if use_sprites else None)
 spring = Spring(spring_x, spring_y, spring_w, spring_h, (255, 215, 0), sprites if use_sprites else None)
 ```
+
+## 步驟十二: 增加飛行帽道具
+
+### 基本設定
+- 物件設計：
+  - 尺寸：40x30 像素
+  - 預設顏色：藍色 (0, 0, 255)
+  - 繼承關係：從 pygame.sprite.Sprite 繼承
+  - 成員變數：active(飛行狀態)、platform(所屬平台)
+- 生成機制：
+  - 觸發條件：玩家分數達到100分
+  - 生成機率：每個平台有5%機率
+  - 生成位置：平台上方隨機位置，避免重疊
+
+### 飛行效果
+1. 物理系統：
+   - 初始效果：
+     - 觸發時給予彈簧的四倍的上升距離但速度為彈簧的四分之一（彈簧效果的5倍）
+     - 同時進入飛行狀態，改變物理運算規則
+   - 持續效果：
+     - 維持-6.25像素/幀的穩定上升速度
+     - 不受重力影響，保持等速上升
+   - 結束條件：
+     - 當上升速度接近0時自動結束
+     - 或當玩家觸碰其他道具時強制結束
+   - 程式參考：
+```python
+class Spring:
+    def __init__(self, platform, sprites=None):
+        """
+        初始化彈簧道具\n
+        platform: 彈簧所在的平台物件\n
+        sprites: 精靈圖片字典\n
+        """
+        self.width = 20  # 彈簧寬度
+        self.height = 10  # 彈簧高度
+        # 將彈簧放在平台的隨機位置上
+        self.rect = pygame.Rect(
+            random.randint(platform.rect.left, platform.rect.right - self.width),
+            platform.rect.top - self.height,
+            self.width,
+            self.height,
+        )
+        self.color = (255, 255, 0)  # 黃色（當沒有圖片時使用）
+        self.platform = platform  # 記錄所屬平台
+        self.sprites = sprites  # 儲存精靈圖片
+
+    def draw(self, display_area):
+        """
+        繪製彈簧\n
+        display_area: 繪製彈簧的目標視窗\n
+        """
+        if self.sprites and "spring_normal" in self.sprites:
+            sprite = self.sprites["spring_normal"]
+            # 調整精靈大小以符合彈簧實際尺寸
+            scaled_sprite = pygame.transform.scale(
+                sprite, (self.rect.width, self.rect.height)
+            )
+            display_area.blit(scaled_sprite, self.rect)
+        else:
+            pygame.draw.rect(display_area, self.color, self.rect)
+
+    def update_position(self):
+        """
+        更新彈簧位置\n
+        讓彈簧跟著平台移動\n
+        """
+        # 計算彈簧與平台的相對位置
+        platform_top = self.platform.rect.top
+        self.rect.bottom = platform_top
+
+```
+
+2. 互動規則：
+   - 飛行狀態下不受彈簧影響
+   - 不會觸發特殊平台的消失效果
+   - 飛行結束後恢復所有正常互動
+
+3. 視覺效果：
+   - 飛行時道具會跟隨玩家移動
+   - 在玩家頭頂上方顯示
+   - 飛行結束後道具消失
+   - 速度一直維持-6.25
+
+### 程式實作重點
+1. 類別設計：
+   - 建立 Propeller 類別，繼承自 pygame.sprite.Sprite
+   - 參考 Spring 類別的基本結構
+   - 實作碰撞檢測和效果觸發機制
+   
+
+2. 狀態管理：
+   - 追蹤飛行狀態（active/inactive）
+   - 計算剩餘飛行時間
+   - 管理與玩家的相對位置
+
+3. 效能優化：
+   - 實作物件池管理（重複使用物件）
+   - 及時清理離開視窗的飛行帽
+   - 優化碰撞檢測邏輯
+
+## 步驟十三: 飛行帽精靈圖片實作
+
+### 圖片資源
+- 精靈來源：class9/image/src.png
+- 裁切位置：(660, 473)
+- 圖片尺寸：68x44像素
+
+### 實作重點
+- 在 load_doodle_sprites() 函式中加入飛行帽精靈：
+  - 精靈名稱：propeller
+  - 精靈切割座標：(660, 473, 68, 44)
+- 修改 Propeller 類別：
+  - 調整物件尺寸以符合精靈圖片大小
+  - 加入 sprites 參數到 __init__ 方法
+  - 更新 draw 方法支援精靈圖片繪製
+
+### 注意事項
+- 確保圖片載入時有適當的錯誤處理機制
+- 使用 convert_alpha() 處理透明度
+- 無法載入圖片時要保留原始的藍色矩形顯示
