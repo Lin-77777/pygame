@@ -565,6 +565,7 @@ def reset_game():
     """
     global score, game_over, platforms, springs, initial_player_y, highest_score, propellers
 
+    score = 0  # 重設分數
     # 重設玩家位置
     player.rect.x = (bg_x - player_w) // 2
     player.rect.y = bg_y - player_h - 50
@@ -612,7 +613,6 @@ def reset_game():
                 propellers.append(propeller)
 
     # 重設遊戲相關變數
-    score = 0
     game_over = False
     initial_player_y = player.rect.y
 
