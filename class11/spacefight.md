@@ -131,3 +131,109 @@
   - 飛彈物件自行處理後續移動和狀態更新
 - 主程式繪圖順序：
   - 先繪製飛彈，再繪製玩家太空船，這樣飛彈會被太空船蓋住底部，看起來像是從太空船身體中間發射出去
+
+### 步驟 6: 實現飛彈連發功能
+
+- 設計飛彈連發機制：
+  - 設定飛彈最大同時存在數量常數 `MISSILE_MAX`（如 10），建立一個飛彈物件列表，每個物件皆為 `Missile` 實例。
+  - 每次發射時，從飛彈列表中尋找第一個未啟動（`active=False`）的飛彈物件，呼叫其 `launch()` 方法發射，並啟動冷卻計時。
+  - 設計飛彈冷卻時間變數 `msl_cooldown`，每次發射後設為最大值 `msl_cooldown_max`，每幀自動遞減，冷卻歸零才能再次發射。
+  - 這樣可防止玩家無限連發，並確保同時在畫面上的飛彈數量不超過上限。
+- 主程式邏輯：
+  - 每幀自動遞減 `msl_cooldown`，確保冷卻機制生效。
+  - 處理按鍵事件時，若按下空白鍵且冷卻為零，則遍歷飛彈清單，找到未啟動的飛彈物件進行發射，並重設冷卻。
+  - 每幀遍歷飛彈清單，呼叫每個飛彈的 `move()` 方法進行移動，並呼叫 `draw()` 方法繪製所有活躍中的飛彈。
+- 這種設計可大幅提升效能，避免頻繁建立/銷毀物件，並讓飛彈發射更流暢自然。
+
+### 步驟 7: 添加敵機類別
+
+- 創建 `Enemy` 類別管理敵機：
+  - `__init__` 初始化函式：
+    - 位置與尺寸 (x, y, width, height)
+    - 速度 (敵機移動速度)
+    - 圖片 (img)
+    - 以 `pygame.Rect` 建立敵機的矩形區域，方便碰撞與移動管理
+  - `move` 方法：
+    - 控制敵機垂直向下移動（`self.rect.y += self.speed`）
+    - 若敵機超出畫面底部（`self.rect.top > bg_y`），則自動呼叫 `reset()`，將敵機重置到畫面上方隨機位置
+  - `reset` 方法：
+    - 隨機產生敵機的 X 座標（`random.randint(0, bg_x - self.rect.width)`），Y 座標設為畫面上方外（`-self.rect.height`）
+  - `draw` 方法：
+    - 若有圖片則繪製圖片，否則以紅色矩形顯示
+    - 圖片會根據敵機尺寸自動縮放
+- 載入敵機圖片 (image/enemy1.png)
+  - 於圖片載入區塊加入：
+
+    ```python
+    img_enemy1 = pygame.image.load("image/enemy1.png")
+    ```
+
+- 在主程式區塊建立一個敵機物件，初始位置隨機，速度固定，並讓其自動移動與重生：
+  - 設定敵機寬高、速度
+  - 隨機 X 座標，Y 座標設為畫面上方外
+  - 建立敵機物件：
+
+    ```python
+    enemy = Enemy(enemy_x, enemy_y, enemy_w, enemy_h, enemy_speed, img_enemy1)
+    ```
+
+- 在主程式中呼叫 `enemy.move()` 與 `enemy.draw(screen)` 來更新與繪製敵機
+  - 每幀先移動敵機，再繪製敵機
+  - 敵機會自動在畫面底部重生，形成無限下落的效果
+- 這樣設計可讓敵機持續出現在畫面上，為後續碰撞與分數系統做準備
+
+### 步驟 8: 增加多種敵機類型
+
+- 載入多種敵機圖片：
+  - 在圖片載入區塊，載入多張敵機圖片，例如：
+
+    ```python
+    img_enemy1 = pygame.image.load("image/enemy1.png")  # 載入敵機圖片1
+    img_enemy2 = pygame.image.load("image/enemy2.png")  # 載入敵機圖片2
+    ```
+
+  - 建立敵機圖片列表，方便之後隨機選擇：
+
+    ```python
+    enemy_images = [img_enemy1, img_enemy2]
+    ```
+
+- 修改 `Enemy` 類別，讓每台敵機都能隨機選擇不同圖片：
+  - 在 `__init__` 初始化時，將圖片參數改為隨機從 `enemy_images` 選取：
+
+    ```python
+    self.img = random.choice(enemy_images)
+    ```
+
+  - 在 `reset` 方法中，敵機重生時也隨機選擇一張圖片：
+
+    ```python
+    self.img = random.choice(enemy_images)
+    ```
+
+- 建立敵機物件時，省略圖片參數，讓 `Enemy` 類別自動隨機選擇圖片：
+  - 例如：
+
+    ```python
+    enemy = Enemy(enemy_x, enemy_y, enemy_w, enemy_h, enemy_speed)
+    ```
+
+- 主程式中，敵機的移動與繪製方式不變：
+  - 每幀呼叫 `enemy.move()` 與 `enemy.draw(screen)`，敵機會自動在畫面底部重生並隨機換一種外觀。
+- 這樣設計可讓敵機每次出現時都可能是不同造型，讓遊戲畫面更豐富多變。
+
+### 步驟 9: 實現敵機群系統
+
+- 設定敵機數量與屬性：
+  - 設定敵機數量常數 `emy_num = 5`，可依需求調整。
+  - 設定敵機寬度 `enemy_w = 60`、高度 `enemy_h = 60`、下落速度 `enemy_speed = 5`。
+- 建立敵機物件列表：
+  - 建立空列表 `emy_list = []` 用於儲存所有敵機物件。
+  - 使用 for 迴圈依序建立多個敵機物件：
+    - 每個敵機的 x 座標隨機（`random.randint(0, bg_x - enemy_w)`），確保不會超出視窗。
+    - y 座標設為 `-enemy_h - random.randint(0, bg_y)`，讓敵機分布於畫面上方外的不同位置，避免同時出現一整排。
+
+- 主程式中敵機群的更新與繪製：
+  - 每幀遍歷 `emy_list`，分別呼叫每台敵機的 `move()` 與 `draw(screen)` 方法。
+  - 敵機會自動在畫面底部重生，形成無限下落的效果。
+- 這樣設計可讓敵機持續出現在畫面上，並且分布隨機，為後續碰撞與分數系統做準備。
