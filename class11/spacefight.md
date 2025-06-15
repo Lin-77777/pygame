@@ -280,5 +280,120 @@
 
 - 這樣設計可讓分數與音效管理集中於專屬類別，主程式更簡潔，日後擴充（如多種音效、分數顯示特效）也更方便
 
+### 步驟 12: 敵機火焰推進效果
+
+- 載入火焰圖片：
+  - 在圖片載入區塊加入：
+    ```python
+    img_enemy_burner = pygame.image.load("image/starship_burner.png")
+    ```
+- 修改 `Enemy` 類別，讓每台敵機都能在後方顯示火焰推進效果：
+  - 在 `__init__` 方法中新增參數 `burner_img`，並儲存火焰圖片。
+  - 在 `draw` 方法中：
+    - 先將火焰圖片用 `pygame.transform.rotate` 旋轉 180 度（讓火焰朝下）。
+    - 動態縮放火焰圖片寬度為敵機寬度的 1/3，高度等比例縮放。
+    - 計算火焰繪製位置，讓火焰位於敵機底部中央偏下。
+    - 先繪製火焰，再繪製敵機，確保火焰在敵機後方。
+- 建立敵機物件時，傳入火焰圖片：
+  ```python
+  enemy = Enemy(enemy_x, enemy_y, enemy_w, enemy_h, enemy_speed, img, img_enemy_burner)
+  ```
+- 若有多台敵機，建立時皆傳入火焰圖片。
+- 這樣設計可讓每台敵機在飛行時，底部都會有火焰推進動畫，並且火焰會自動旋轉朝下，增強視覺動態感。
+
+- 進階：讓敵機火焰也有上下晃動動畫
+  - 在 `Enemy` 類別中加入 `self.burn_shift` 屬性，於 `__init__` 設為 0。
+  - 在 `draw` 方法中，每次呼叫時更新 `self.burn_shift = (self.burn_shift + 2) % 12`。
+  - 火焰的 y 座標根據 `self.burn_shift` 動態調整，達到上下晃動的動畫效果。
+  - 這樣火焰推進效果會更有動態感。
+
+### 步驟 13: 敵機爆炸動畫效果
+
+- 載入爆炸動畫圖片：
+  - 假設爆炸動畫有5張圖片，檔名依序為 image/explode0.png ~ image/explode5.png。
+  - 在圖片載入區塊用for迴圈自動載入：
+    ```python
+    img_explode = []
+    for i in range(6):
+        img = pygame.image.load(f"image/explode{i}.png")
+        img_explode.append(img)
+    ```
+
+- 擴充 `Enemy` 類別，加入爆炸動畫屬性與方法：
+  - 新增屬性：
+    - `EXP`：布林值，判斷是否在爆炸動畫中
+    - `exp_count`：目前爆炸動畫的幀數計數器
+    - `exp_max`：爆炸動畫總幀數（如5張圖*5fps=25）
+    - `img_explode`：爆炸動畫圖片清單
+  - 新增方法：
+    - `explode()`：觸發爆炸動畫，將EXP設為True並重設計數器
+    - `draw_explode(screen)`：依exp_count顯示對應爆炸圖片，動畫結束後自動reset()重生，並重設EXP狀態
+  - 修改`draw(screen)`方法：
+    - 若EXP為True則執行`draw_explode(screen)`，否則正常繪製敵機
+    - 爆炸時不移動
+
+- 參考程式片段：
+  ```python
+  class Enemy:
+      def __init__(self, ... , img_explode):
+          # ...existing code...
+          self.EXP = False
+          self.exp_count = 0
+          self.exp_max = 25
+          self.img_explode = img_explode
+          # ...existing code...
+      def explode(self):
+          self.EXP = True
+          self.exp_count = 0
+      def draw_explode(self, screen):
+          idx = self.exp_count // 5  # 每5幀換一張圖
+          if idx < len(self.img_explode):
+              img = pygame.transform.scale(self.img_explode[idx], (self.rect.width, self.rect.height))
+              screen.blit(img, self.rect)
+              self.exp_count += 1
+          else:
+              self.EXP = False
+              self.reset()
+      def draw(self, screen):
+          if self.EXP:
+              self.draw_explode(screen)
+          else:
+              # ...existing code...
+  ```
+
+- 在 `CollisionManager` 類別中，更新碰撞處理：
+  - 當敵機被擊中時，呼叫其`explode()`方法，不立即reset，等爆炸動畫結束後自動重生。
+  - 例如：
+    ```python
+    if self.is_hit(missile, enemy):
+        missile.active = False
+        enemy.explode()
+    ```
+
+- 這樣設計可讓敵機被擊中時，先播放爆炸動畫，動畫結束後才重生，提升遊戲視覺效果。
 
 
+
+### 步驟 14: 實現太空船無敵效果
+
+-   類別 Player
+
+    -   新增屬性：
+        -   invincible：布林值，表示太空船是否處於無敵狀態
+        -   invincible_time：整數，記錄無敵剩餘幀數
+    -   新增方法：
+        -   take_damage(invincible_duration=60)：當太空船未處於無敵狀態時，呼叫此方法會啟動無敵狀態，並將 invincible_time 設為指定幀數（預設 60，約 1 秒）。可於此方法中加入受傷音效或特效
+        -   update()：每幀自動遞減 invincible_time，當歸零時自動解除無敵狀態
+    -   更新方法：
+        -   draw(screen)：無敵期間太空船會閃爍顯示（例如每 4 幀隱藏一次），以提示玩家目前處於無敵狀態，其餘繪圖邏輯不變
+
+-   類別 CollisionManager
+
+    -   新增/更新方法：
+        -   check_collisions()：
+            -   檢查太空船與敵機碰撞時，若太空船未處於無敵狀態，則呼叫 player.take_damage() 並啟動無敵
+            -   敵機同時觸發爆炸動畫
+
+-   在主程式主迴圈中，每幀呼叫 player.update() 以更新無敵狀態。
+
+這樣設計可確保太空船被敵機碰撞後短暫無敵，並以閃爍效果提示玩家，防止連續受傷。
